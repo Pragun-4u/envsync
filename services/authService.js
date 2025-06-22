@@ -29,7 +29,6 @@ class AuthService {
   async pollForLogin(onSuccess, onError) {
     const startTime = Date.now();
     const { pollInterval, pollTimeout } = config.auth;
-
     const poll = async () => {
       try {
         const elapsedTime = Date.now() - startTime;

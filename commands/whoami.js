@@ -7,7 +7,7 @@ export const whoamiCommand = (program) => {
     .description("Show currently logged in user")
     .action(() => {
       const user = configService.getUser();
-
+      console.log("user", user);
       if (user) {
         console.log(chalk.blue(`👤 Logged in as ${chalk.bold(user.login)}`));
 

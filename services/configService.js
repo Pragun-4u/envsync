@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { config } from "../config/config.js";
-
 class ConfigService {
   constructor() {
     this.configDir = config.storage.configDir;
@@ -17,7 +16,9 @@ class ConfigService {
 
   saveUser(userData) {
     try {
-      fs.writeFileSync(this.configFile, JSON.stringify(userData, null, 2));
+      fs.writeFileSync(this.configFile, JSON.stringify(userData, null, 2), {
+        mode: 0o600, // Set file permissions to 600 : readable and writable by owner only
+      });
       return true;
     } catch (error) {
       console.error("Failed to save user data:", error.message);

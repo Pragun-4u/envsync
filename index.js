@@ -6,6 +6,7 @@ import {
   logoutCommand,
   whoamiCommand,
   initCommand,
+  pushCommand,
 } from "./commands/index.js";
 program
   .name("envsync")
@@ -17,5 +18,6 @@ loginCommand(program);
 logoutCommand(program);
 whoamiCommand(program);
 initCommand(program);
+pushCommand(program);
 
 program.parse(process.argv);

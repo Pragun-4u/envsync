@@ -8,6 +8,7 @@ export const config = {
       login: "/auth/github",
       logout: "/auth/logout",
       me: "/auth/me",
+      push: "/service/push",
     },
   },
   storage: {
@@ -18,4 +19,5 @@ export const config = {
     pollInterval: 2000, // 2 seconds
     pollTimeout: 60000, // 60 seconds
   },
+  INIT_CONFIG_NAME: process.env.ENVSYNC_INIT_CONFIG_NAME || ".envsync.json",
 };

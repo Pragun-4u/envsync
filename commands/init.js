@@ -3,8 +3,9 @@ import path from "path";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import fg from "fast-glob";
+import { config } from "../config/config.js";
 
-const INIT_CONFIG_NAME = ".envsync.json";
+const INIT_CONFIG_NAME = config.INIT_CONFIG_NAME;
 
 const COMMON_DIRS = [".", "apps", "packages"];
 
