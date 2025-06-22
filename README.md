@@ -11,7 +11,7 @@ A simple and secure CLI tool to **sync, manage, and share `.env` files** across 
 
 * 🔐 GitHub-based authentication
 * 🧪 Interactive `init` to configure multiple `.env` files
-* 🔁 `sync` command to securely upload your `.env` to the cloud
+* 🔁 `push` command to securely upload your `.env` to the cloud
 * 📅 `pull` command to retrieve any env profile anytime
 * ⚙️ Supports multiple profiles per project (e.g., `dev`, `prod`, `staging`)
 * 🧠 Smart `.envsync.json` config with project and profile mapping
@@ -67,12 +67,12 @@ envsync init
 
 ---
 
-### 2. `envsync sync --profile <alias>`
+### 2. `envsync push --profile <alias>`
 
 Push a `.env` file to the cloud.
 
 ```bash
-envsync sync --profile dev-env
+envsync push --profile dev-env
 ```
 
 ---
@@ -142,7 +142,7 @@ Your `.envsync.json` file defines your projects and profiles:
 
 * [x] GitHub login
 * [x] Local config store
-* [x] `init`, `sync`, `pull`, `logout` commands
+* [x] `init`, `push`, `pull`, `logout` commands
 * [ ] Encrypted `.env` storage
 * [ ] Team support / access control
 * [ ] S3 / Firebase / Supabase backend options
