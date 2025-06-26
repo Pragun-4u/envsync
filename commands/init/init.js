@@ -1,9 +1,12 @@
-import fs from "fs";
-import path from "path";
-import inquirer from "inquirer";
+// cli/commands/initCommand.js
 import chalk from "chalk";
 import fg from "fast-glob";
-import { config } from "../config/config.js";
+import fs from "fs";
+import inquirer from "inquirer";
+import path from "path";
+import { config } from "../../config/config.js";
+import { getGitRemoteUrl } from "../../utils/index.js";
+import { checkExistingProject, createProjectInCloud } from "./api/index.js";
 
 const INIT_CONFIG_NAME = config.INIT_CONFIG_NAME;
 
@@ -27,10 +30,89 @@ const findEnvFiles = async (baseDir) => {
   );
 };
 
+const writeConfig = (configPath, configData) => {
+  fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
+
+  const gitignorePath = path.join(process.cwd(), ".gitignore");
+  if (fs.existsSync(gitignorePath)) {
+    const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
+    if (!gitignoreContent.includes(INIT_CONFIG_NAME)) {
+      fs.appendFileSync(gitignorePath, `\n${INIT_CONFIG_NAME}\n`);
+    }
+  } else {
+    fs.writeFileSync(gitignorePath, `${INIT_CONFIG_NAME}\n`);
+  }
+};
+
 const init = async () => {
   const cwd = process.cwd();
+  const configPath = path.join(cwd, INIT_CONFIG_NAME);
 
-  // Step 1: Try auto-detecting env files in common directories
+  let configExists = fs.existsSync(configPath);
+
+  if (configExists) {
+    const { reInit } = await inquirer.prompt([
+      {
+        name: "reInit",
+        type: "confirm",
+        message: "⚙️ Project already initialized. Do you want to re-init?",
+        default: false,
+      },
+    ]);
+
+    if (!reInit) {
+      console.log(chalk.yellow("❌ Init cancelled."));
+      return;
+    }
+  } else {
+    console.log(
+      chalk.yellow("⚙️ No local config found. Attempting recovery...")
+    );
+    const gitUrl = getGitRemoteUrl();
+
+    if (gitUrl) {
+      console.log(
+        chalk.blue("🔍 Git remote detected. Attempting to auto-link...")
+      );
+
+      const existingProject = await checkExistingProject(gitUrl);
+
+      if (existingProject) {
+        console.log(chalk.green("✅ Project found in the cloud."));
+        console.log(`Project: ${existingProject.projectName}`);
+
+        const { reLink } = await inquirer.prompt([
+          {
+            name: "reLink",
+            type: "confirm",
+            message: "Do you want to re-link this project?",
+            default: true,
+          },
+        ]);
+
+        if (reLink) {
+          writeConfig(configPath, {
+            projectId: existingProject.projectId,
+            gitRemoteUrl: gitUrl,
+            defaultProject: existingProject.projectName,
+            defaultProfile: existingProject.defaultProfile,
+            projects: existingProject.projects,
+          });
+
+          console.log(chalk.green("\n✅ Project re-linked successfully!"));
+          return;
+        }
+      }
+    }
+
+    console.log(
+      chalk.yellow(
+        "\n⚙️ No existing project found. Proceeding with fresh init."
+      )
+    );
+  }
+
+  // Step 2: Scan for env files
   const suggestions = [];
   for (const dir of COMMON_DIRS) {
     const full = path.join(cwd, dir);
@@ -143,16 +225,22 @@ const init = async () => {
     },
   ]);
 
-  const config = {
+  const gitUrl = getGitRemoteUrl();
+  const cloudProject = await createProjectInCloud(projectName, gitUrl);
+
+  if (!cloudProject) return;
+
+  const finalConfig = {
+    projectId: cloudProject.projectId,
+    gitRemoteUrl: gitUrl,
+    defaultProject: projectName,
+    defaultProfile,
     projects: {
       [projectName]: profiles,
     },
-    defaultProject: projectName,
-    defaultProfile,
   };
 
-  const configPath = path.join(cwd, INIT_CONFIG_NAME);
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeConfig(configPath, finalConfig);
 
   console.log(
     chalk.green(
@@ -161,6 +249,13 @@ const init = async () => {
   );
   console.log(
     chalk.gray("You can now sync or pull environments using your aliases.\n")
+  );
+
+  console.log(chalk.yellow(`🔐 Project Token: ${cloudProject.projectToken}`));
+  console.log(
+    chalk.gray(
+      "Save this token in a safe place in case you need to recover your project without Git.\n"
+    )
   );
 };
 

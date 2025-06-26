@@ -1,4 +1,4 @@
-import axios from "axios";
+import httpClient from "../utils/httpClient.js";
 import { config } from "../config/config.js";
 import configService from "./configService.js";
 
@@ -14,9 +14,7 @@ class AuthService {
 
   async checkAuthStatus() {
     try {
-      const response = await axios.get(
-        `${this.apiBaseUrl}${this.endpoints.me}`
-      );
+      const response = await httpClient.get(this.endpoints.me);
       return response.data;
     } catch (error) {
       if (error.response?.status === 401) {
@@ -29,12 +27,13 @@ class AuthService {
   async pollForLogin(onSuccess, onError) {
     const startTime = Date.now();
     const { pollInterval, pollTimeout } = config.auth;
+
     const poll = async () => {
       try {
         const elapsedTime = Date.now() - startTime;
 
         if (elapsedTime > pollTimeout) {
-          onError(new Error("Login timeout - please try again"));
+          onError(new Error("Login timeout - please try again."));
           return;
         }
 
@@ -56,9 +55,7 @@ class AuthService {
 
   async logout() {
     try {
-      const response = await axios.get(
-        `${this.apiBaseUrl}${this.endpoints.logout}`
-      );
+      const response = await httpClient.get(this.endpoints.logout);
 
       if (response.status === 200) {
         return configService.deleteUser();

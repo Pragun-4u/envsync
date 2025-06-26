@@ -1,5 +1,6 @@
 import { config } from "../config/config.js";
 import axios from "axios";
+
 class envSyncService {
   constructor() {
     this.apiBaseUrl = config.api.baseUrl;
@@ -9,20 +10,25 @@ class envSyncService {
   async push(data) {
     try {
       const {
-        envContent,
+        encryptedData,
+        iv,
         user: { accessToken },
       } = data;
 
-      return await axios.post(
+      const res = await axios.post(
         `${this.apiBaseUrl}${this.endpoints.push}`,
-        envContent,
+        { encryptedData, iv },
         {
-          headers: { "x-auth-token": JSON.stringify(accessToken) },
-          "Content-Type": "application/json",
+          headers: {
+            "x-auth-token": JSON.stringify(accessToken),
+            "Content-Type": "application/json",
+          },
         }
       );
+
+      return res.data;
     } catch (error) {
-      console.log("Error pushing environment variables:", error.message);
+      console.log("❌ Error pushing environment variables:", error.message);
     }
   }
 }

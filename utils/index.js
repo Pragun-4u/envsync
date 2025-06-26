@@ -1,4 +1,4 @@
-import axios from "axios";
+import { execSync } from "child_process";
 import fs from "fs";
 
 // Read the current logged-in user
@@ -20,4 +20,15 @@ const getExistingUser = (configFile) => {
   }
 };
 
-export { getExistingUser };
+const getGitRemoteUrl = () => {
+  try {
+    const url = execSync("git config --get remote.origin.url")
+      .toString()
+      .trim();
+    return url || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+export { getExistingUser, getGitRemoteUrl };
