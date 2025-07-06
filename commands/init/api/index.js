@@ -26,3 +26,14 @@ export const createProjectInCloud = async (projectName, gitRemoteUrl) => {
     return null;
   }
 };
+
+export const checkExistingProjectByToken = async (token) => {
+  try {
+    const res = await httpClient.get("/service/projects/by-token", {
+      params: { token },
+    });
+    return res.data;
+  } catch (error) {
+    return null;
+  }
+};

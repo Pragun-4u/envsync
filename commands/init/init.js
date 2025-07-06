@@ -6,10 +6,13 @@ import inquirer from "inquirer";
 import path from "path";
 import { config } from "../../config/config.js";
 import { getGitRemoteUrl } from "../../utils/index.js";
-import { checkExistingProject, createProjectInCloud } from "./api/index.js";
+import {
+  checkExistingProject,
+  createProjectInCloud,
+  checkExistingProjectByToken,
+} from "./api/index.js";
 
 const INIT_CONFIG_NAME = config.INIT_CONFIG_NAME;
-
 const COMMON_DIRS = [".", "apps", "packages"];
 
 const findEnvFiles = async (baseDir) => {
@@ -23,10 +26,7 @@ const findEnvFiles = async (baseDir) => {
       "!**/coverage/**",
       `!**/${INIT_CONFIG_NAME}`,
     ],
-    {
-      cwd: baseDir,
-      onlyFiles: true,
-    }
+    { cwd: baseDir, onlyFiles: true }
   );
 };
 
@@ -44,75 +44,7 @@ const writeConfig = (configPath, configData) => {
   }
 };
 
-const init = async () => {
-  const cwd = process.cwd();
-  const configPath = path.join(cwd, INIT_CONFIG_NAME);
-
-  let configExists = fs.existsSync(configPath);
-
-  if (configExists) {
-    const { reInit } = await inquirer.prompt([
-      {
-        name: "reInit",
-        type: "confirm",
-        message: "⚙️ Project already initialized. Do you want to re-init?",
-        default: false,
-      },
-    ]);
-
-    if (!reInit) {
-      console.log(chalk.yellow("❌ Init cancelled."));
-      return;
-    }
-  } else {
-    console.log(
-      chalk.yellow("⚙️ No local config found. Attempting recovery...")
-    );
-    const gitUrl = getGitRemoteUrl();
-
-    if (gitUrl) {
-      console.log(
-        chalk.blue("🔍 Git remote detected. Attempting to auto-link...")
-      );
-
-      const existingProject = await checkExistingProject(gitUrl);
-
-      if (existingProject) {
-        console.log(chalk.green("✅ Project found in the cloud."));
-        console.log(`Project: ${existingProject.projectName}`);
-
-        const { reLink } = await inquirer.prompt([
-          {
-            name: "reLink",
-            type: "confirm",
-            message: "Do you want to re-link this project?",
-            default: true,
-          },
-        ]);
-
-        if (reLink) {
-          writeConfig(configPath, {
-            projectId: existingProject.projectId,
-            gitRemoteUrl: gitUrl,
-            defaultProject: existingProject.projectName,
-            defaultProfile: existingProject.defaultProfile,
-            projects: existingProject.projects,
-          });
-
-          console.log(chalk.green("\n✅ Project re-linked successfully!"));
-          return;
-        }
-      }
-    }
-
-    console.log(
-      chalk.yellow(
-        "\n⚙️ No existing project found. Proceeding with fresh init."
-      )
-    );
-  }
-
-  // Step 2: Scan for env files
+const configureProfiles = async (cwd) => {
   const suggestions = [];
   for (const dir of COMMON_DIRS) {
     const full = path.join(cwd, dir);
@@ -161,7 +93,7 @@ const init = async () => {
 
   if (allEnvFiles.length === 0) {
     console.log(chalk.red("❌ No .env files found in the specified folder."));
-    return;
+    return null;
   }
 
   const { selectedFiles } = await inquirer.prompt([
@@ -172,16 +104,6 @@ const init = async () => {
       choices: allEnvFiles,
       validate: (input) =>
         input.length > 0 || "You must select at least one file.",
-    },
-  ]);
-
-  const { projectName } = await inquirer.prompt([
-    {
-      name: "projectName",
-      type: "input",
-      message: "📦 What would you like to name this project?",
-      validate: (input) =>
-        input.trim() !== "" || "Project name cannot be empty.",
     },
   ]);
 
@@ -207,15 +129,6 @@ const init = async () => {
     profiles[envLabel] = file;
   }
 
-  if (Object.keys(profiles).length === 0) {
-    console.log(chalk.yellow("⚠️ No files selected. Exiting init."));
-    return;
-  }
-
-  console.log(
-    "\nℹ️  The default environment will be used when you run commands without choosing one explicitly.\n"
-  );
-
   const { defaultProfile } = await inquirer.prompt([
     {
       name: "defaultProfile",
@@ -225,19 +138,157 @@ const init = async () => {
     },
   ]);
 
-  const gitUrl = getGitRemoteUrl();
-  const cloudProject = await createProjectInCloud(projectName, gitUrl);
+  return { profiles, defaultProfile };
+};
 
+const init = async () => {
+  const cwd = process.cwd();
+  const configPath = path.join(cwd, INIT_CONFIG_NAME);
+
+  if (fs.existsSync(configPath)) {
+    const { reInit } = await inquirer.prompt([
+      {
+        name: "reInit",
+        type: "confirm",
+        message: "⚙️ Project already initialized. Do you want to re-init?",
+        default: false,
+      },
+    ]);
+
+    if (!reInit) {
+      console.log(chalk.yellow("❌ Init cancelled."));
+      return;
+    }
+  } else {
+    console.log(
+      chalk.yellow("⚙️ No local config found. Attempting recovery...")
+    );
+
+    const gitUrl = getGitRemoteUrl();
+
+    if (gitUrl) {
+      console.log(
+        chalk.blue("🔍 Git remote detected. Attempting to auto-link...")
+      );
+
+      const existingProject = await checkExistingProject(gitUrl);
+
+      if (existingProject) {
+        console.log(chalk.green("✅ Project found in the cloud."));
+        console.log(`Project: ${existingProject.projectName}`);
+
+        const { reLink } = await inquirer.prompt([
+          {
+            name: "reLink",
+            type: "confirm",
+            message: "Do you want to re-link this project?",
+            default: true,
+          },
+        ]);
+
+        if (reLink) {
+          console.log(chalk.yellow("⚙️ Reconfiguring your .env files..."));
+
+          const profileConfig = await configureProfiles(cwd);
+          if (!profileConfig) return;
+
+          writeConfig(configPath, {
+            projectId: existingProject.projectId,
+            gitRemoteUrl: gitUrl,
+            projectName: existingProject.projectName,
+            projectToken: existingProject.projectToken,
+            defaultProfile: profileConfig.defaultProfile,
+            profiles: profileConfig.profiles,
+          });
+
+          console.log(
+            chalk.green("\n✅ Project re-linked and configured successfully!")
+          );
+          return;
+        }
+      }
+    } else {
+      console.log(chalk.yellow("🚫 No Git remote detected."));
+
+      const { hasToken } = await inquirer.prompt([
+        {
+          name: "hasToken",
+          type: "confirm",
+          message: "Do you have a project token to link an existing project?",
+          default: false,
+        },
+      ]);
+
+      if (hasToken) {
+        const { token } = await inquirer.prompt([
+          {
+            name: "token",
+            type: "input",
+            message: "🔐 Enter your project token:",
+            validate: (input) =>
+              input.trim() !== "" || "Token cannot be empty.",
+          },
+        ]);
+
+        const existingProject = await checkExistingProjectByToken(token);
+
+        if (existingProject) {
+          console.log(chalk.yellow("⚙️ Reconfiguring your .env files..."));
+
+          const profileConfig = await configureProfiles(cwd);
+          if (!profileConfig) return;
+
+          writeConfig(configPath, {
+            projectId: existingProject.projectId,
+            gitRemoteUrl: existingProject.gitRemoteUrl,
+            projectName: existingProject.defaultProject,
+            projectToken: token,
+            defaultProfile: profileConfig.defaultProfile,
+            profiles: profileConfig.profiles,
+          });
+
+          console.log(
+            chalk.green("\n✅ Project re-linked successfully using token!")
+          );
+          return;
+        } else {
+          console.log(chalk.red("❌ Invalid token or project not found."));
+        }
+      }
+
+      console.log(chalk.yellow("\n⚙️ Proceeding with fresh init."));
+    }
+  }
+
+  console.log(
+    chalk.yellow("\n⚙️ No existing project found. Proceeding with fresh init.")
+  );
+
+  // Fresh init flow
+  const profileConfig = await configureProfiles(cwd);
+  if (!profileConfig) return;
+
+  const { projectName } = await inquirer.prompt([
+    {
+      name: "projectName",
+      type: "input",
+      message: "📦 What would you like to name this project?",
+      validate: (input) =>
+        input.trim() !== "" || "Project name cannot be empty.",
+    },
+  ]);
+
+  const gitUrl = getGitRemoteUrl();
+  const cloudProject = await createProjectInCloud(projectName, gitUrl || null);
   if (!cloudProject) return;
 
   const finalConfig = {
     projectId: cloudProject.projectId,
     gitRemoteUrl: gitUrl,
-    defaultProject: projectName,
-    defaultProfile,
-    projects: {
-      [projectName]: profiles,
-    },
+    projectName,
+    projectToken: cloudProject.projectToken,
+    defaultProfile: profileConfig.defaultProfile,
+    profiles: profileConfig.profiles,
   };
 
   writeConfig(configPath, finalConfig);

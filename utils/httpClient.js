@@ -24,9 +24,7 @@ httpClient.interceptors.request.use(
 httpClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      console.error("❌ Unauthorized. Please login again.");
-    } else if (error.response?.status === 500) {
+    if (error.response?.status === 500) {
       console.error("❌ Server error. Try again later.");
     } else {
       console.error("❌ Request failed:", error.message);

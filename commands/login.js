@@ -31,9 +31,10 @@ export const loginCommand = (program) => {
 
         await authService.pollForLogin(
           (user) => {
+            console.log({ user });
             spinner.succeed(
               chalk.green(
-                `✅ Successfully logged in as ${chalk.bold(user.login)}`
+                `✅ Successfully logged in as ${chalk.bold(user.name)}`
               )
             );
             console.log(chalk.gray(`✍️ Name: ${user.name || "Not specified"}`));
