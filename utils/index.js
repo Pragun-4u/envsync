@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import crypto from "crypto";
 import fs from "fs";
 
 // Read the current logged-in user
@@ -31,4 +32,22 @@ const getGitRemoteUrl = () => {
   }
 };
 
-export { getExistingUser, getGitRemoteUrl };
+const getKeyFromPassword = (password) => {
+  return crypto.scryptSync(password, "envsync_salt", 32);
+};
+
+const encryptEnv = (content, password) => {
+  const iv = crypto.randomBytes(16);
+  const key = getKeyFromPassword(password);
+
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  let encrypted = cipher.update(content, "utf-8", "hex");
+  encrypted += cipher.final("hex");
+
+  return {
+    iv: iv.toString("hex"),
+    encryptedData: encrypted,
+  };
+};
+
+export { encryptEnv, getExistingUser, getGitRemoteUrl, getKeyFromPassword };

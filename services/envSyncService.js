@@ -1,34 +1,23 @@
 import { config } from "../config/config.js";
-import axios from "axios";
+import httpClient from "../utils/httpClient.js";
 
 class envSyncService {
-  constructor() {
-    this.apiBaseUrl = config.api.baseUrl;
-    this.endpoints = config.api.endpoints;
-  }
-
   async push(data) {
     try {
-      const {
-        encryptedData,
-        iv,
-        user: { accessToken },
-      } = data;
+      const { projectId, profileName, encryptedEnvData, initializationVector } =
+        data;
 
-      const res = await axios.post(
-        `${this.apiBaseUrl}${this.endpoints.push}`,
-        { encryptedData, iv },
-        {
-          headers: {
-            "x-auth-token": JSON.stringify(accessToken),
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const res = await httpClient.post(config.api.endpoints.push, {
+        projectId,
+        profileName,
+        encryptedEnvData,
+        initializationVector,
+      });
 
       return res.data;
     } catch (error) {
       console.log("❌ Error pushing environment variables:", error.message);
+      return null;
     }
   }
 }

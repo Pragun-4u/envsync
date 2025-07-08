@@ -27,7 +27,7 @@ httpClient.interceptors.response.use(
     if (error.response?.status === 500) {
       console.error("❌ Server error. Try again later.");
     } else {
-      console.error("❌ Request failed:", error.message);
+      // console.error("❌ Request failed:", error.message);
     }
 
     return Promise.reject(error);

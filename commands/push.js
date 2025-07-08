@@ -3,30 +3,12 @@ import path from "path";
 import crypto from "crypto";
 import readline from "readline";
 import { config } from "../config/config.js";
-import { getExistingUser } from "../utils/index.js";
+import { encryptEnv, getExistingUser } from "../utils/index.js";
 import envSyncService from "../services/envSyncService.js";
 
 const INIT_CONFIG_NAME = config.INIT_CONFIG_NAME;
 const configFile = config.storage.configFile;
 const projectConfigPath = path.join(process.cwd(), INIT_CONFIG_NAME);
-
-const getKeyFromPassword = (password) => {
-  return crypto.scryptSync(password, "envsync_salt", 32); // 32 bytes for AES-256
-};
-
-const encryptEnv = (content, password) => {
-  const iv = crypto.randomBytes(16);
-  const key = getKeyFromPassword(password);
-
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(content, "utf-8", "hex");
-  encrypted += cipher.final("hex");
-
-  return {
-    iv: iv.toString("hex"),
-    encryptedData: encrypted,
-  };
-};
 
 const promptPassphrase = () => {
   return new Promise((resolve) => {
@@ -40,7 +22,6 @@ const promptPassphrase = () => {
     rl.write(" Remember this secret passphrase! \n");
     rl.question("🔑 Enter encryption passphrase: ", (password) => {
       rl.close();
-      console.log("password", password);
       resolve(password);
     });
 
@@ -54,11 +35,11 @@ const promptPassphrase = () => {
 export const pushCommand = (program) => {
   program
     .command("push")
+    .option("--profile <profile>", "Specify which profile to push")
     .description("Push your environment variables from Local to Cloud")
-    .action(async () => {
+    .action(async (options) => {
       try {
         const user = getExistingUser(configFile);
-
         if (!user) {
           console.error("❌ No user logged in. Run `envsync login` first.");
           return;
@@ -69,48 +50,61 @@ export const pushCommand = (program) => {
           return;
         }
 
-        const config = JSON.parse(fs.readFileSync(projectConfigPath, "utf-8"));
-        const { defaultProject, defaultProfile, projects } = config;
+        const configData = JSON.parse(
+          fs.readFileSync(projectConfigPath, "utf-8")
+        );
+        const { projectId, defaultProfile, profiles } = configData;
 
-        if (!defaultProject || !projects?.[defaultProject]) {
-          console.error("❌ No project initialized. Run `envsync init` first.");
+        if (!projectId || !defaultProfile || !profiles?.[defaultProfile]) {
+          console.error("❌ No valid project found. Run `envsync init` first.");
           return;
         }
 
-        const envFilePath = projects[defaultProject][defaultProfile];
+        const selectedProfile = options.profile || defaultProfile;
+
+        if (!profiles[selectedProfile]) {
+          console.error(
+            `❌ Profile '${selectedProfile}' not found in this project.`
+          );
+          return;
+        }
+
+        const envFilePath = profiles[selectedProfile];
 
         if (!fs.existsSync(envFilePath)) {
-          console.error(
-            "❌ No environment file found. Run `envsync init` first."
-          );
+          console.error(`❌ Environment file '${envFilePath}' not found.`);
           return;
         }
 
         const envContent = fs.readFileSync(envFilePath, "utf-8");
-
         if (!envContent) {
+          console.error("❌ Environment file is empty.");
+          return;
+        }
+
+        const passphrase = await promptPassphrase();
+        console.log("\n");
+
+        const { encryptedData, iv } = encryptEnv(envContent, passphrase);
+
+        const res = await envSyncService.push({
+          projectId,
+          profileName: selectedProfile,
+          encryptedEnvData: encryptedData,
+          initializationVector: iv,
+          user,
+        });
+
+        if (!res) {
           console.error(
-            "❌ Environment file is empty. Run `envsync init` first."
+            "❌ Failed to push environment variables to the cloud."
           );
           return;
         }
 
-        // Prompt for passphrase
-        const passphrase = await promptPassphrase();
-
-        // Encrypt the env content
-        const { encryptedData, iv } = encryptEnv(envContent, passphrase);
-        console.log({ encryptedData, iv });
-
-        // Push encrypted data
-        const res = await envSyncService.push({ encryptedData, iv, user });
-
-        if (!res) {
-          console.error("❌ Error pushing environment variables.");
-          return;
-        }
-
-        console.log("✅ Successfully pushed encrypted environment file!");
+        console.log(
+          `✅ Successfully pushed '${selectedProfile}' profile to the cloud!`
+        );
       } catch (error) {
         console.error("❌ Error pushing environment variables:", error.message);
       }
