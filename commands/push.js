@@ -85,13 +85,18 @@ export const pushCommand = (program) => {
         const passphrase = await promptPassphrase();
         console.log("\n");
 
-        const { encryptedData, iv } = encryptEnv(envContent, passphrase);
+        const { encryptedData, iv, salt, authTag } = encryptEnv(
+          envContent,
+          passphrase
+        );
 
         const res = await envSyncService.push({
           projectId,
           profileName: selectedProfile,
           encryptedEnvData: encryptedData,
           initializationVector: iv,
+          salt,
+          authTag,
           user,
         });
 

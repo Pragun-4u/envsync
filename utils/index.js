@@ -37,17 +37,48 @@ const getKeyFromPassword = (password) => {
 };
 
 const encryptEnv = (content, password) => {
-  const iv = crypto.randomBytes(16);
-  const key = getKeyFromPassword(password);
+  const salt = crypto.randomBytes(16);
+  const iv = crypto.randomBytes(12);
+  const key = crypto.scryptSync(password, salt, 32);
 
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(content, "utf-8", "hex");
-  encrypted += cipher.final("hex");
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+
+  const encrypted = Buffer.concat([
+    cipher.update(content, "utf8"),
+    cipher.final(),
+  ]);
+
+  const authTag = cipher.getAuthTag();
 
   return {
+    encryptedData: encrypted.toString("hex"),
+    salt: salt.toString("hex"),
     iv: iv.toString("hex"),
-    encryptedData: encrypted,
+    authTag: authTag.toString("hex"),
   };
 };
 
-export { encryptEnv, getExistingUser, getGitRemoteUrl, getKeyFromPassword };
+const decryptEnv = (encryptedData, password, saltHex, ivHex, authTagHex) => {
+  const salt = Buffer.from(saltHex, "hex");
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+
+  const key = crypto.scryptSync(password, salt, 32);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(encryptedData, "hex")),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString("utf8");
+};
+
+export {
+  encryptEnv,
+  getExistingUser,
+  getGitRemoteUrl,
+  getKeyFromPassword,
+  decryptEnv,
+};

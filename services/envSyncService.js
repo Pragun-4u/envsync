@@ -4,14 +4,22 @@ import httpClient from "../utils/httpClient.js";
 class envSyncService {
   async push(data) {
     try {
-      const { projectId, profileName, encryptedEnvData, initializationVector } =
-        data;
+      const {
+        projectId,
+        profileName,
+        encryptedEnvData,
+        initializationVector,
+        salt,
+        authTag,
+      } = data;
 
       const res = await httpClient.post(config.api.endpoints.push, {
         projectId,
         profileName,
         encryptedEnvData,
         initializationVector,
+        salt,
+        authTag,
       });
 
       return res.data;

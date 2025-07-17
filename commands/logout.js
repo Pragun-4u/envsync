@@ -28,7 +28,7 @@ export const logoutCommand = (program) => {
 
         console.log(
           chalk.green(
-            `✅ Successfully logged out as ${chalk.bold(existingUser.login)}`
+            `✅ Successfully logged out as ${chalk.bold(existingUser.username)}`
           )
         );
       } catch (error) {
