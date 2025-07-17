@@ -9,6 +9,7 @@ export const config = {
       logout: "/auth/logout",
       me: "/auth/me",
       push: "/service/push",
+      pull: "/service/pull",
     },
   },
   storage: {

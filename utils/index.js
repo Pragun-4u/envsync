@@ -75,10 +75,15 @@ const decryptEnv = (encryptedData, password, saltHex, ivHex, authTagHex) => {
   return decrypted.toString("utf8");
 };
 
+const getProjectConfig = (projectConfigPath) => {
+  const configData = JSON.parse(fs.readFileSync(projectConfigPath, "utf-8"));
+  return configData;
+};
 export {
   encryptEnv,
   getExistingUser,
   getGitRemoteUrl,
   getKeyFromPassword,
   decryptEnv,
+  getProjectConfig,
 };
