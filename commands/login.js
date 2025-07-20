@@ -15,7 +15,7 @@ export const loginCommand = (program) => {
         if (existingUser) {
           console.log(
             chalk.blue(
-              `👤 Already logged in as ${chalk.bold(existingUser.login)}`
+              `👤 Already logged in as ${chalk.bold(existingUser.username)}`
             )
           );
           return;

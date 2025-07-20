@@ -1,7 +1,11 @@
 import inquirer from "inquirer";
 import ora from "ora";
 import { config } from "../config/config.js";
-import { getExistingUser, getProjectConfig } from "../utils/index.js";
+import {
+  decryptEnv,
+  getExistingUser,
+  getProjectConfig,
+} from "../utils/index.js";
 import path from "path";
 import fs from "fs";
 import envSyncService from "../services/envSyncService.js";
@@ -62,25 +66,43 @@ export const pullCommand = async (program) => {
 
         const spinner = ora("Fetching environment variables...").start();
 
-        const res = await envSyncService.pull({
+        const pullResponse = await envSyncService.pull({
           projectId,
           profileName: selectedProfile,
         });
 
-        console.log({ res });
+        if (!pullResponse.response) {
+          spinner.fail("No environment data found.");
+          return;
+        }
 
-        // if (!res || !res.encryptedEnvData || !res.initializationVector) {
-        //   spinner.fail("No environment data found.");
-        //   return;
-        // }
+        const res = pullResponse.response;
 
-        // const decrypted = decryptEnv(res.encryptedEnvData, res.initializationVector, passphrase);
+        if (!res || !res.encryptedEnvData || !res.initializationVector) {
+          spinner.fail("No environment data found.");
+          return;
+        }
 
-        // const envPath = path.resolve(process.cwd(), ".env");
-        // fs.writeFileSync(envPath, decrypted, "utf-8");
+        const decrypted = decryptEnv(
+          res.encryptedEnvData,
+          passphrase,
+          res.salt,
+          res.initializationVector,
+          res.authTag
+        );
 
-        // spinner.succeed(".env pulled and written successfully ✅");
-        // console.log(`Saved to: ${envPath}`);
+        if (!decrypted) {
+          spinner.fail("Failed to decrypt environment variables.");
+          return;
+        }
+
+        console.log(decrypted);
+
+        const envPath = path.resolve(process.cwd(), ".env");
+        fs.writeFileSync(envPath, decrypted, "utf-8");
+
+        spinner.succeed(".env pulled and written successfully ✅");
+        console.log(`Saved to: ${envPath}`);
       } catch (err) {
         console.error("❌ Error during pull:", err.message || err);
       }
