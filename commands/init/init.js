@@ -5,7 +5,7 @@ import fs from "fs";
 import inquirer from "inquirer";
 import path from "path";
 import { config } from "../../config/config.js";
-import { getGitRemoteUrl } from "../../utils/index.js";
+import { getGitRemoteUrl, writeConfig } from "../../utils/index.js";
 import {
   checkExistingProject,
   createProjectInCloud,
@@ -28,20 +28,6 @@ const findEnvFiles = async (baseDir) => {
     ],
     { cwd: baseDir, onlyFiles: true }
   );
-};
-
-const writeConfig = (configPath, configData) => {
-  fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
-
-  const gitignorePath = path.join(process.cwd(), ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
-    if (!gitignoreContent.includes(INIT_CONFIG_NAME)) {
-      fs.appendFileSync(gitignorePath, `\n${INIT_CONFIG_NAME}\n`);
-    }
-  } else {
-    fs.writeFileSync(gitignorePath, `${INIT_CONFIG_NAME}\n`);
-  }
 };
 
 const configureProfiles = async (cwd) => {
@@ -164,31 +150,32 @@ const init = async () => {
       chalk.yellow("⚙️ No local config found. Attempting recovery...")
     );
 
+    let existingProject = null;
     const gitUrl = getGitRemoteUrl();
 
     if (gitUrl) {
       console.log(
-        chalk.blue("🔍 Git remote detected. Attempting to auto-link...")
+        chalk.blue("🔍 Git remote detected. Checking for project...")
       );
-
-      const existingProject = await checkExistingProject(gitUrl);
+      existingProject = await checkExistingProject(gitUrl);
 
       if (existingProject) {
-        console.log(chalk.green("✅ Project found in the cloud."));
-        console.log(`Project: ${existingProject.projectName}`);
-
+        console.log(
+          chalk.green(
+            `✅ Found project "${existingProject.projectName}" on the cloud.`
+          )
+        );
         const { reLink } = await inquirer.prompt([
           {
             name: "reLink",
             type: "confirm",
-            message: "Do you want to re-link this project?",
+            message:
+              "Do you want to re-link this local project with the cloud one?",
             default: true,
           },
         ]);
 
         if (reLink) {
-          console.log(chalk.yellow("⚙️ Reconfiguring your .env files..."));
-
           const profileConfig = await configureProfiles(cwd);
           if (!profileConfig) return;
 
@@ -201,70 +188,68 @@ const init = async () => {
             profiles: profileConfig.profiles,
           });
 
-          console.log(
-            chalk.green("\n✅ Project re-linked and configured successfully!")
-          );
+          console.log(chalk.green("✅ Project re-linked successfully!"));
           return;
         }
       }
-    } else {
-      console.log(chalk.yellow("🚫 No Git remote detected."));
+    }
 
-      const { hasToken } = await inquirer.prompt([
+    const { hasToken } = await inquirer.prompt([
+      {
+        name: "hasToken",
+        type: "confirm",
+        message:
+          "Do you have a project token to link to an existing cloud project?",
+        default: false,
+      },
+    ]);
+
+    if (hasToken) {
+      const { token } = await inquirer.prompt([
         {
-          name: "hasToken",
-          type: "confirm",
-          message: "Do you have a project token to link an existing project?",
-          default: false,
+          name: "token",
+          type: "input",
+          message: "🔐 Enter your project token:",
+          validate: (input) => input.trim() !== "" || "Token cannot be empty.",
         },
       ]);
 
-      if (hasToken) {
-        const { token } = await inquirer.prompt([
-          {
-            name: "token",
-            type: "input",
-            message: "🔐 Enter your project token:",
-            validate: (input) =>
-              input.trim() !== "" || "Token cannot be empty.",
-          },
-        ]);
+      existingProject = await checkExistingProjectByToken(token);
+      console.log({ existingProject });
+      if (existingProject) {
+        console.log(
+          chalk.green(
+            `✅ Found project "${existingProject.defaultProject}" using token.`
+          )
+        );
+        const profileConfig = await configureProfiles(cwd);
+        if (!profileConfig) return;
 
-        const existingProject = await checkExistingProjectByToken(token);
+        writeConfig(configPath, {
+          projectId: existingProject.projectId,
+          gitRemoteUrl: existingProject.gitRemoteUrl || null,
+          projectName: existingProject.projectName,
+          projectToken: token,
+          defaultProfile: profileConfig.defaultProfile,
+          profiles: profileConfig.profiles,
+        });
 
-        if (existingProject) {
-          console.log(chalk.yellow("⚙️ Reconfiguring your .env files..."));
-
-          const profileConfig = await configureProfiles(cwd);
-          if (!profileConfig) return;
-
-          writeConfig(configPath, {
-            projectId: existingProject.projectId,
-            gitRemoteUrl: existingProject.gitRemoteUrl,
-            projectName: existingProject.defaultProject,
-            projectToken: token,
-            defaultProfile: profileConfig.defaultProfile,
-            profiles: profileConfig.profiles,
-          });
-
-          console.log(
-            chalk.green("\n✅ Project re-linked successfully using token!")
-          );
-          return;
-        } else {
-          console.log(chalk.red("❌ Invalid token or project not found."));
-        }
+        console.log(
+          chalk.green("✅ Project re-linked successfully using token!")
+        );
+        return;
+      } else {
+        console.log(chalk.red("❌ Invalid token or project not found."));
       }
-
-      console.log(chalk.yellow("\n⚙️ Proceeding with fresh init."));
     }
+
+    console.log(
+      chalk.yellow(
+        "⚙️ No matching project found. Proceeding with new project init..."
+      )
+    );
   }
 
-  console.log(
-    chalk.yellow("\n⚙️ No existing project found. Proceeding with fresh init.")
-  );
-
-  // Fresh init flow
   const profileConfig = await configureProfiles(cwd);
   if (!profileConfig) return;
 
@@ -301,7 +286,6 @@ const init = async () => {
   console.log(
     chalk.gray("You can now sync or pull environments using your aliases.\n")
   );
-
   console.log(chalk.yellow(`🔐 Project Token: ${cloudProject.projectToken}`));
   console.log(
     chalk.gray(

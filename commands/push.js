@@ -54,7 +54,7 @@ export const pushCommand = (program) => {
           fs.readFileSync(projectConfigPath, "utf-8")
         );
         const { projectId, defaultProfile, profiles } = configData;
-
+        console.log({ projectId, defaultProfile, profiles });
         if (!projectId || !defaultProfile || !profiles?.[defaultProfile]) {
           console.error("❌ No valid project found. Run `envsync init` first.");
           return;
@@ -89,6 +89,7 @@ export const pushCommand = (program) => {
           envContent,
           passphrase
         );
+        console.log({ projectId });
 
         const res = await envSyncService.push({
           projectId,
@@ -98,6 +99,7 @@ export const pushCommand = (program) => {
           salt,
           authTag,
           user,
+          filePath: envFilePath,
         });
 
         if (!res) {

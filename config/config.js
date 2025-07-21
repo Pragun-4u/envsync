@@ -10,6 +10,7 @@ export const config = {
       me: "/auth/me",
       push: "/service/push",
       pull: "/service/pull",
+      listProjectsForUser: "/service/projects",
     },
   },
   storage: {
