@@ -1,4 +1,4 @@
-# 🌱 envsync
+# 🌱 envsync - WORK IN PROGRESS ❗
 
 A simple and secure CLI tool to **sync, manage, and share `.env` files** across projects and teams — powered by GitHub login and cloud backup.
 
